@@ -1,40 +1,44 @@
+#!/usr/bin/env python3
+"""Config Checker - Audit cloud config files for misconfigurations"""
 import json
-import yaml
-import os
 
-RISKY_PATTERNS = {
-    "password_in_config": ["password", "passwd", "secret", "api_key", "token"],
-    "debug_mode": ["debug: true", "debug=true", "DEBUG=1"],
-    "open_ports": ["0.0.0.0", ":::"],
-}
+CHECKS = [
+    {"key": "logging.enabled", "expected": True, "severity": "HIGH", "msg": "Logging disabled"},
+    {"key": "mfa.required", "expected": True, "severity": "CRITICAL", "msg": "MFA not required"},
+    {"key": "encryption.at_rest", "expected": True, "severity": "HIGH", "msg": "Encryption at rest disabled"},
+    {"key": "encryption.in_transit", "expected": True, "severity": "HIGH", "msg": "Encryption in transit disabled"},
+    {"key": "public_access.blocked", "expected": True, "severity": "CRITICAL", "msg": "Public access not blocked"},
+    {"key": "versioning.enabled", "expected": True, "severity": "MEDIUM", "msg": "Versioning disabled"},
+]
+
+def get_nested(data, key_path):
+    keys = key_path.split(".")
+    for k in keys:
+        if isinstance(data, dict):
+            data = data.get(k)
+        else:
+            return None
+    return data
 
 class ConfigChecker:
-    def __init__(self, filepath):
-        self.filepath = filepath
-        self.findings = []
-
-    def load_config(self):
-        try:
-            with open(self.filepath, "r") as f:
-                if self.filepath.endswith(".json"):
-                    return json.load(f)
-                elif self.filepath.endswith((".yaml", ".yml")):
-                    return yaml.safe_load(f)
-                else:
-                    return f.read()
-        except Exception as e:
-            print(f"[-] Config load error: {e}")
-            return {}
+    def __init__(self, config_path):
+        self.config_path = config_path
 
     def check(self):
-        config_str = str(self.load_config()).lower()
-        for issue_type, keywords in RISKY_PATTERNS.items():
-            for kw in keywords:
-                if kw.lower() in config_str:
-                    self.findings.append({
-                        "issue": issue_type,
-                        "keyword": kw,
-                        "severity": "HIGH" if "password" in kw or "secret" in kw else "MEDIUM"
+        findings = []
+        try:
+            with open(self.config_path) as f:
+                config = json.load(f)
+            for check in CHECKS:
+                value = get_nested(config, check["key"])
+                if value != check["expected"]:
+                    findings.append({
+                        "type": "Misconfiguration",
+                        "key": check["key"],
+                        "message": check["msg"],
+                        "severity": check["severity"]
                     })
-                    print(f"[!] Found {issue_type}: keyword '{kw}'")
-        return self.findings
+                    print(f"[!] {check['severity']}: {check['msg']}")
+        except Exception as e:
+            findings.append({"error": str(e)})
+        return findings
