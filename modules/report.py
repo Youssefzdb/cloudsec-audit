@@ -1,36 +1,30 @@
 #!/usr/bin/env python3
-"""Cloud Security Report Generator"""
 from datetime import datetime
-import json
 
-class CloudReport:
+SEV_COLOR = {"CRITICAL": "#ff0000", "HIGH": "#ff6600", "MEDIUM": "#ffcc00", "LOW": "#88cc00", "INFO": "#4488ff", "ERROR": "#ff44aa"}
+
+class Report:
     def __init__(self, results):
         self.results = results
 
     def save(self, filename):
-        findings_html = ""
-        for section, data in self.results.items():
-            findings_html += f"<h2>{section.upper()}</h2>"
-            if isinstance(data, list):
-                for f in data:
-                    severity = f.get("severity", "INFO")
-                    color = {"CRITICAL": "#ff4444", "HIGH": "#ff8800", "MEDIUM": "#ffcc00", "LOW": "#44aaff", "INFO": "#888"}.get(severity, "#888")
-                    findings_html += f"<div style='border-left:4px solid {color};padding:10px;margin:5px 0;background:#0f1923'>"
-                    findings_html += f"<span style='color:{color}'>[{severity}]</span> <b>{f.get('check','')}</b><br>"
-                    findings_html += f"<small>{f.get('desc','')}{f.get('issue','')}</small></div>"
+        all_findings = []
+        for category, items in self.results.items():
+            all_findings.extend(items)
 
-        html = f"""<!DOCTYPE html>
-<html>
-<head><title>CloudSec Audit Report</title>
-<style>
-body{{font-family:Arial;background:#07111a;color:#cce0ff;padding:20px}}
-h1{{color:#00aaff}} h2{{color:#4fc3f7;margin-top:20px}}
-</style></head>
-<body>
-<h1>CloudSec Audit Report</h1>
-<p>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-{findings_html}
-</body></html>"""
+        rows = "".join(
+            f"<tr><td style='color:{SEV_COLOR.get(f.get(\"severity\",\"INFO\"),\"white\")}'>{f.get('severity')}</td><td>{f.get('service')}</td><td>{f.get('issue')}</td></tr>"
+            for f in all_findings
+        )
+        html = f"""<!DOCTYPE html><html><head><title>CloudSec Audit</title>
+<style>body{{font-family:Arial;background:#0f172a;color:#e2e8f0;padding:20px}}
+h1{{color:#38bdf8}}table{{width:100%;border-collapse:collapse;margin:10px 0}}
+td,th{{padding:8px;border:1px solid #1e293b}}th{{background:#1e293b}}</style></head>
+<body><h1>Cloud Security Audit Report</h1>
+<p>Findings: <b>{len(all_findings)}</b> | {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+<table><tr><th>Severity</th><th>Service</th><th>Issue</th></tr>
+{rows if rows else '<tr><td colspan=3>No findings</td></tr>'}
+</table></body></html>"""
         with open(filename, "w") as f:
             f.write(html)
-        print(f"[+] Cloud report saved: {filename}")
+        print(f"[+] Saved: {filename}")
