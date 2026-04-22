@@ -1,42 +1,45 @@
 #!/usr/bin/env python3
-"""IAM Policy Analyzer - Detect overly permissive IAM policies"""
-try:
-    import boto3
-    HAS_BOTO3 = True
-except ImportError:
-    HAS_BOTO3 = False
+"""IAM Analyzer - Detect overprivileged roles and policies"""
+import json
 
 class IAMAnalyzer:
-    def __init__(self, profile="default"):
-        self.profile = profile
+    def __init__(self, config_path):
+        self.config_path = config_path
 
     def analyze(self):
-        if not HAS_BOTO3:
-            return self._demo_analysis()
         findings = []
         try:
-            session = boto3.Session(profile_name=self.profile)
-            iam = session.client("iam")
-            users = iam.list_users()["Users"]
-            for user in users:
-                uname = user["UserName"]
-                attached = iam.list_attached_user_policies(UserName=uname)["AttachedPolicies"]
-                for policy in attached:
-                    if policy["PolicyName"] == "AdministratorAccess":
-                        findings.append({
-                            "type": "Admin IAM User",
-                            "resource": uname,
-                            "detail": "User has AdministratorAccess",
-                            "severity": "HIGH"
-                        })
-                        print(f"[!] User {uname} has AdministratorAccess!")
-        except Exception as e:
-            return self._demo_analysis()
-        return findings
+            with open(self.config_path) as f:
+                config = json.load(f)
 
-    def _demo_analysis(self):
-        return [
-            {"type": "Admin IAM User", "resource": "john.doe", "detail": "Direct AdministratorAccess policy", "severity": "HIGH"},
-            {"type": "No MFA", "resource": "service-account", "detail": "IAM user without MFA enabled", "severity": "MEDIUM"},
-            {"type": "Wildcard Policy", "resource": "dev-policy", "detail": "Policy uses Action: *", "severity": "HIGH"},
-        ]
+            iam = config.get("iam", {})
+            users = iam.get("users", [])
+
+            for user in users:
+                policies = user.get("policies", [])
+                if "AdministratorAccess" in policies:
+                    findings.append({
+                        "type": "Overprivileged User",
+                        "user": user.get("name"),
+                        "policy": "AdministratorAccess",
+                        "severity": "CRITICAL"
+                    })
+                    print(f"[!] CRITICAL: User {user.get('name')} has AdministratorAccess")
+
+                if not user.get("mfa_enabled", False):
+                    findings.append({
+                        "type": "MFA Disabled",
+                        "user": user.get("name"),
+                        "severity": "HIGH"
+                    })
+
+                if user.get("access_key_age_days", 0) > 90:
+                    findings.append({
+                        "type": "Stale Access Key",
+                        "user": user.get("name"),
+                        "age_days": user["access_key_age_days"],
+                        "severity": "MEDIUM"
+                    })
+        except Exception as e:
+            findings.append({"error": str(e)})
+        return findings
