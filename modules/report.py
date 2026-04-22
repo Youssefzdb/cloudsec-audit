@@ -1,26 +1,36 @@
 #!/usr/bin/env python3
+"""Cloud Security Report Generator"""
 from datetime import datetime
+import json
 
 class CloudReport:
-    def __init__(self, provider, findings):
-        self.provider = provider
-        self.findings = findings
+    def __init__(self, results):
+        self.results = results
 
     def save(self, filename):
-        severity_colors = {"CRITICAL": "#ff0000", "HIGH": "#ff6600", "MEDIUM": "#ffaa00", "LOW": "#00aa00"}
-        rows = ""
-        for f in self.findings:
-            color = severity_colors.get(f.get("severity",""), "#ffffff")
-            rows += f"<tr><td>{f.get('service','')}</td><td>{f.get('resource','')}</td><td style='color:{color}'><b>{f.get('severity','')}</b></td><td>{f.get('issue','')}</td></tr>"
-        
-        html = f"""<!DOCTYPE html><html><head><title>CloudSec Audit</title>
-<style>body{{font-family:Arial;background:#0f1117;color:#e2e8f0;padding:20px}}
-h1{{color:#38bdf8}}table{{width:100%;border-collapse:collapse}}
-td,th{{padding:10px;border:1px solid #1e293b;text-align:left}}th{{background:#1e3a5f}}</style></head>
-<body><h1>CloudSec Audit Report — {self.provider.upper()}</h1>
-<p>{datetime.now().strftime('%Y-%m-%d %H:%M')} | Total findings: <b>{len(self.findings)}</b></p>
-<table><tr><th>Service</th><th>Resource</th><th>Severity</th><th>Issue</th></tr>
-{rows}</table></body></html>"""
+        findings_html = ""
+        for section, data in self.results.items():
+            findings_html += f"<h2>{section.upper()}</h2>"
+            if isinstance(data, list):
+                for f in data:
+                    severity = f.get("severity", "INFO")
+                    color = {"CRITICAL": "#ff4444", "HIGH": "#ff8800", "MEDIUM": "#ffcc00", "LOW": "#44aaff", "INFO": "#888"}.get(severity, "#888")
+                    findings_html += f"<div style='border-left:4px solid {color};padding:10px;margin:5px 0;background:#0f1923'>"
+                    findings_html += f"<span style='color:{color}'>[{severity}]</span> <b>{f.get('check','')}</b><br>"
+                    findings_html += f"<small>{f.get('desc','')}{f.get('issue','')}</small></div>"
+
+        html = f"""<!DOCTYPE html>
+<html>
+<head><title>CloudSec Audit Report</title>
+<style>
+body{{font-family:Arial;background:#07111a;color:#cce0ff;padding:20px}}
+h1{{color:#00aaff}} h2{{color:#4fc3f7;margin-top:20px}}
+</style></head>
+<body>
+<h1>CloudSec Audit Report</h1>
+<p>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+{findings_html}
+</body></html>"""
         with open(filename, "w") as f:
             f.write(html)
-        print(f"[+] Report saved: {filename}")
+        print(f"[+] Cloud report saved: {filename}")
