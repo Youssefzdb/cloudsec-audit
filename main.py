@@ -1,37 +1,32 @@
 #!/usr/bin/env python3
-"""
-cloudsec-audit - Cloud Infrastructure Security Auditing Framework
-Audits AWS/GCP/Azure configurations for misconfigurations and vulnerabilities
-"""
+"""cloudsec-audit - Cloud Security Posture Auditor (AWS/GCP/Azure)"""
 import argparse
 from modules.aws_auditor import AWSAuditor
-from modules.s3_checker import S3Checker
-from modules.iam_analyzer import IAMAnalyzer
+from modules.azure_auditor import AzureAuditor
 from modules.report import CloudReport
 
 def main():
-    parser = argparse.ArgumentParser(description="CloudSec Audit Framework")
-    parser.add_argument("--provider", choices=["aws", "gcp", "azure", "all"], default="aws")
+    parser = argparse.ArgumentParser(description="Cloud Security Posture Auditor")
+    parser.add_argument("--provider", choices=["aws", "azure", "gcp"], required=True)
     parser.add_argument("--profile", default="default", help="AWS profile name")
-    parser.add_argument("--output", default="cloudsec_report.html")
+    parser.add_argument("--output", default="cloud_audit.html")
     args = parser.parse_args()
 
-    print(f"[*] CloudSec Auditor starting - Provider: {args.provider}")
-    results = {}
+    print(f"[*] Auditing {args.provider.upper()} cloud environment...")
+    findings = []
 
-    if args.provider in ["aws", "all"]:
+    if args.provider == "aws":
         auditor = AWSAuditor(args.profile)
-        results["aws"] = auditor.audit()
+        findings = auditor.audit()
+    elif args.provider == "azure":
+        auditor = AzureAuditor()
+        findings = auditor.audit()
+    else:
+        print("[-] GCP support coming soon")
 
-        s3 = S3Checker(args.profile)
-        results["s3"] = s3.check()
-
-        iam = IAMAnalyzer(args.profile)
-        results["iam"] = iam.analyze()
-
-    report = CloudReport(results)
+    report = CloudReport(args.provider, findings)
     report.save(args.output)
-    print(f"[+] Audit complete. Report: {args.output}")
+    print(f"[+] {len(findings)} findings. Report: {args.output}")
 
 if __name__ == "__main__":
     main()
