@@ -1,32 +1,34 @@
 #!/usr/bin/env python3
-"""cloudsec-audit - Cloud Security Posture Auditor (AWS/GCP/Azure)"""
+"""cloudsec-audit - Cloud Infrastructure Security Auditing Framework"""
 import argparse
 from modules.aws_auditor import AWSAuditor
-from modules.azure_auditor import AzureAuditor
-from modules.report import CloudReport
+from modules.config_checker import ConfigChecker
+from modules.iam_analyzer import IAMAnalyzer
+from modules.reporter import CloudSecReporter
 
 def main():
-    parser = argparse.ArgumentParser(description="Cloud Security Posture Auditor")
-    parser.add_argument("--provider", choices=["aws", "azure", "gcp"], required=True)
-    parser.add_argument("--profile", default="default", help="AWS profile name")
-    parser.add_argument("--output", default="cloud_audit.html")
+    parser = argparse.ArgumentParser(description="cloudsec-audit - Cloud Security Audit")
+    parser.add_argument("--provider", choices=["aws", "config"], default="config")
+    parser.add_argument("--config", help="Path to cloud config JSON")
+    parser.add_argument("--output", default="cloudsec_report.json")
     args = parser.parse_args()
 
-    print(f"[*] Auditing {args.provider.upper()} cloud environment...")
-    findings = []
+    print(f"[*] cloudsec-audit | provider: {args.provider}")
+    results = {}
 
     if args.provider == "aws":
-        auditor = AWSAuditor(args.profile)
-        findings = auditor.audit()
-    elif args.provider == "azure":
-        auditor = AzureAuditor()
-        findings = auditor.audit()
-    else:
-        print("[-] GCP support coming soon")
+        auditor = AWSAuditor()
+        results["aws"] = auditor.audit()
+    
+    if args.config:
+        checker = ConfigChecker(args.config)
+        results["config"] = checker.check()
+        iam = IAMAnalyzer(args.config)
+        results["iam"] = iam.analyze()
 
-    report = CloudReport(args.provider, findings)
-    report.save(args.output)
-    print(f"[+] {len(findings)} findings. Report: {args.output}")
+    reporter = CloudSecReporter(results)
+    reporter.save(args.output)
+    print(f"[+] Audit complete. Report: {args.output}")
 
 if __name__ == "__main__":
     main()
